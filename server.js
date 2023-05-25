@@ -1,12 +1,16 @@
-require('dotenv').config();
 const express = require('express');
-const schedule = require('node-schedule');
 const axios = require('axios');
-const twilio = require('twilio');
+const schedule = require('node-schedule');
+const {Twilio} = require('twilio');
+require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Twilio client
+const twilioClient = new Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+// Axios instance for OpenAI API
 const api = axios.create({
   baseURL: 'https://api.openai.com/v1',
   headers: {
@@ -15,31 +19,18 @@ const api = axios.create({
   },
 });
 
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-
 app.use(express.json());
 
-app.post('/webhook', async (req, res, next) => {
+// Schedule a job to send the course every day
+const sendCourseJob = schedule.scheduleJob('0 9 * * *', async () => {
   try {
-    const { from, body } = req.body;
-    const pluginResponse = await processMessageWithChatGPT(body);
-    await sendResponseToWhatsApp(from, pluginResponse);
-    res.sendStatus(200);
-  } catch (error) {
-    next(error);
-  }
-});
-
-schedule.scheduleJob('0 9 * * *', async () => {
-  try {
-    const prompt = 'Please enter the topic for the course you want to generate:';
-    const topicResponse = await processTopicPromptWithChatGPT(prompt);
+    const topicResponse = await processPromptWithChatGPT('You are a student.', 'Please enter the topic for the course you want to generate:');
     const courseTopic = extractCourseTopic(topicResponse);
 
     if (courseTopic) {
       const courseStructure = await generateCourseStructureWithChatGPT(courseTopic);
-      const deliveryPrompt = 'Do you want the course delivered on WhatsApp? (Yes/No)';
-      const deliveryResponse = await processDeliveryPromptWithChatGPT(deliveryPrompt);
+
+      const deliveryResponse = await processPromptWithChatGPT('You are a student.', 'Do you want the course delivered on WhatsApp? (Yes/No)');
       const wantsDelivery = checkDeliveryPreference(deliveryResponse);
 
       if (wantsDelivery) {
@@ -47,65 +38,61 @@ schedule.scheduleJob('0 9 * * *', async () => {
       }
     }
   } catch (error) {
-    console.error('Scheduled job error:', error);
+    console.error('Error scheduling job:', error);
   }
 });
 
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
+// Handle incoming WhatsApp messages
+app.post('/webhook', async (req, res) => {
+  const {from, body} = req.body;
+
+  try {
+    const pluginResponse = await processMessageWithChatGPT(body);
+    await sendResponseToWhatsApp(from, pluginResponse);
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Error processing incoming message:', error);
+    res.sendStatus(500);
+  }
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
-
-async function processMessageWithChatGPT(message) {
-  // TODO: Implement this
-  return 'This is the response from the ChatGPT plugin';
-}
-
-async function processTopicPromptWithChatGPT(prompt) {
+async function processPromptWithChatGPT(role, prompt) {
   const response = await api.post('/chat/completions', {
-    messages: [{ role: 'system', content: 'You are a student.' }, { role: 'user', content: prompt }],
+    messages: [{ role: 'system', content: role }, { role: 'user', content: prompt }],
   });
+
   return response.data;
 }
 
 function extractCourseTopic(pluginResponse) {
-  // TODO:quote("Here are a few suggestions to improve", "more efficient and maintainable.")
-// Function to extract the course topic from the plugin response
-function extractCourseTopic(pluginResponse) {
-// TODO: Implement this
-return 'Topic X'; // Placeholder
+  // TODO: Implement this
+  return 'Topic X'; // Placeholder
 }
 
 async function generateCourseStructureWithChatGPT(courseTopic) {
-const prompt = Please generate the course structure for the ${courseTopic} course.;
-const response = await api.post('/chat/completions', {
-messages: [{ role: 'system', content: 'You are a course generator.' }, { role: 'user', content: prompt }],
-});
-return response.data.choices.map(choice => choice.message.content).join('\n');
-}
+  const prompt = `Please generate the course structure for the ${courseTopic} course.`;
+  const response = await api.post('/chat/completions', {
+    messages: [{ role: 'system', content: 'You are a course generator.' }, { role: 'user', content: prompt }],
+  });
 
-async function processDeliveryPromptWithChatGPT(prompt) {
-const response = await api.post('/chat/completions', {
-messages: [{ role: 'system', content: 'You are a student.' }, { role: 'user', content: prompt }],
-});
-return response.data;
+  return response.data.choices.map(choice => choice.message.content).join('\n');
 }
 
 function checkDeliveryPreference(pluginResponse) {
-// TODO: Implement this
-return true; // Placeholder
+  // TODO: Implement this
+  return true; // Placeholder
 }
 
 async function sendCourseToWhatsApp(to, courseStructure) {
-// TODO: Implement this using Twilio or another library
-console.log(Sending course to ${to}: ${courseStructure});
+  // TODO: Implement this using Twilio or another library
+  console.log(`Sending course to ${to}: ${courseStructure}`);
 }
 
 async function sendResponseToWhatsApp(to, message) {
-// TODO: Implement this using Twilio or another library
-console.log(Sending message to ${to}: ${message});
+  // TODO: Implement this using Twilio or another library
+  console.log(`Sending message to ${to}: ${message}`);
 }
+
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
