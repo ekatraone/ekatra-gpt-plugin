@@ -7,8 +7,14 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Twilio client
-const twilioClient = new Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+// WATI client
+const watiClient = axios.create({
+  baseURL: process.env.WATI_API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    apikey: process.env.WATI_API_KEY,
+  },
+});
 
 // Axios instance for OpenAI API
 const api = axios.create({
@@ -44,7 +50,9 @@ const sendCourseJob = schedule.scheduleJob('0 9 * * *', async () => {
 
 // Handle incoming WhatsApp messages
 app.post('/webhook', async (req, res) => {
-  const {from, body} = req.body;
+  const {contact, messages} = req.body;
+  const from = contact.phone.number;
+  const body = messages[0].text.body;
 
   try {
     const pluginResponse = await processMessageWithChatGPT(body);
@@ -55,6 +63,18 @@ app.post('/webhook', async (req, res) => {
     res.sendStatus(500);
   }
 });
+
+async function sendResponseToWhatsApp(number, response) {
+  try {
+    const formattedNumber = `whatsapp:${number}`;
+    const sendMessageResponse = await watiClient.post('/sendMessage', {
+      phone: formattedNumber,
+      body: response,
+    });
+  } catch (error) {
+    console.error('Error sending message:', error);
+  }
+}
 
 async function processPromptWithChatGPT(role, prompt) {
   const response = await api.post('/chat/completions', {
