@@ -1,0 +1,24 @@
+{
+  "name": "WhatsApp Course Bot",
+  "description": "A plugin that generates and delivers courses via WhatsApp.",
+  "author": {
+    "name": "Abheejit",
+    "email": "a@ekatra.one",
+    "website": "https://ekatra.one"
+  },
+  "version": "1.0.0",
+  "tags": ["course", "education", "WhatsApp"],
+  "endpoints": [
+    {
+      "url": "/webhook",
+      "method": "POST",
+      "description": "Endpoint for handling incoming WhatsApp messages"
+    }
+  ],
+  "authentication": {
+    "type": "none"
+  },
+  "permissions": {
+    "required": ["read", "write"]
+  }
+}
